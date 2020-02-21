@@ -1,14 +1,18 @@
 import socket
-from views import *
+import os
+from views import index, about
 
 
-HOST = '0.0.0.0'
+IP_ADDR = '0.0.0.0'
+HOSTNAME = os.environ.get('HOSTNAME', 'localhost')
 PORT = 8080
 
 URLS = {
     '/': index,
     '/about': about,
 }
+
+REDIRECTS = ['/home', '/index']
 
 
 def parse_request(request):
@@ -27,6 +31,8 @@ def generate_headers(method, url):
     """
     if method != 'GET':
         return ('HTTP/1.1 405 Method not allowed\n\n', 405)
+    if url in REDIRECTS:
+        return ('HTTP/1.1 301 Moved permanently\n', 301)
     if not URLS.get(url):
         return ('HTTP/1.1 404 Page not found\n\n', 404)
     return ('HTTP/1.1 200 OK\n\n', 200)
@@ -40,6 +46,8 @@ def generate_content(code, url):
         return '<h1>405 Method not allowed</h1>'
     if code == 404:
         return '<h1>404 Page not found</h1>'
+    if code == 301:
+        return f'Location: http://{HOSTNAME}:{PORT}\n\n'
     return URLS.get(url)()
 
 
@@ -60,7 +68,7 @@ def run():
     # уточняем семейство и тип сокета(AF_INET - сетевой, SOCK_STREAM - TCP)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         # занимаем сокет (адрес, порт)
-        server.bind((HOST, PORT))
+        server.bind((IP_ADDR, PORT))
         # декларируем закрытие сокета при завершении процесса
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # открываем сокет для приёма данных
