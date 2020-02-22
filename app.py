@@ -1,6 +1,7 @@
 import socket
 import os
 from views import index, about
+from utils import redirect
 
 
 IP_ADDR = '0.0.0.0'
@@ -32,7 +33,7 @@ def generate_headers(method, url):
     if method != 'GET':
         return ('HTTP/1.1 405 Method not allowed\n\n', 405)
     if url in REDIRECTS:
-        return ('HTTP/1.1 301 Moved permanently\n', 301)
+        return redirect(f'{HOSTNAME}:{PORT}')
     if not URLS.get(url):
         return ('HTTP/1.1 404 Page not found\n\n', 404)
     return ('HTTP/1.1 200 OK\n\n', 200)
@@ -47,7 +48,7 @@ def generate_content(code, url):
     if code == 404:
         return '<h1>404 Page not found</h1>'
     if code == 301:
-        return f'Location: http://{HOSTNAME}:{PORT}\n\n'
+        return ''
     return URLS.get(url)()
 
 
