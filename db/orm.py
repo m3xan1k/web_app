@@ -13,6 +13,8 @@ SQLITE_TYPE_MAP = {
 CREATE_TABLE_SQL = 'CREATE TABLE {name} ({fields});'
 SELECT_TABLES_SQL = "SELECT name FROM sqlite_master WHERE type = 'table';"
 INSERT_SQL = "INSERT INTO {table} ({fields}) VALUES ({placeholders});"
+SELECT_ALL_SQL = "SELECT {fields} from {table};"
+SELECT_WHERE_SQL = "SELECT {fields} from {table} WHERE {query};"
 
 
 class Database:
@@ -40,8 +42,23 @@ class Database:
         return [row[0] for row in self._execute(SELECT_TABLES_SQL).fetchall()]
 
     def save(self, instance):
-        sql, values = self._execute(instance._get_insert_sql())
-        return self._execute(sql, values)
+        sql, values = instance._get_insert_sql()
+        cursor = self._execute(sql, values)
+        cursor._data['id'] = cursor.lastrowid
+
+    def all(self, table: Table):
+        sql, fields = table._get_select_all_sql()
+        result = []
+        for row in self._execute(sql).fetchall():
+            data = dict(zip(fields, row))
+            result.append(table(**data))
+        return result
+
+    def get(self, table, id):
+        sql, fields, params = table._get_select_where_sql(id=id)
+        row = self._execute(sql, params).fetchone()
+        data = dict(zip(fields, row))
+        return table(**data)
 
 
 class Table:
@@ -93,6 +110,39 @@ class Table:
             placeholders=', '.join(placeholders),
         )
         return sql, values
+
+    @classmethod
+    def _get_select_all_sql(cls):
+        fields = ['id']
+        for name, field in inspect.getmembers(cls):
+            if isinstance(field, Column):
+                fields.append(name)
+        sql = SELECT_ALL_SQL.format(
+            fields=', '.join(fields),
+            table=cls._get_name()
+        )
+        return sql, fields
+
+    def _get_select_where_sql(self, **kwargs):
+        fields = ['id']
+        table = kwargs['table']
+        for name, field in inspect.getmembers(table):
+            if isinstance(field, Column):
+                fields.append(name)
+
+        filters = []
+        params = []
+
+        for key, value in kwargs.items():
+            filters.append(key + ' = ?')
+            params.append(value)
+
+        sql = SELECT_WHERE_SQL.format(
+            fields=', '.join(fields),
+            table=table._get_name(),
+            params=' AND '.join(filters),
+        )
+        return sql, fields, params
 
 
 class Column:
